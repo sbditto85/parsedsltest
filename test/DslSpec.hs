@@ -1,6 +1,6 @@
 module DslSpec (spec) where
 
-import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString  hiding (string)
 import qualified Data.ByteString.Char8       as BSC
 import qualified Data.Either                 as E
 import           Data.Semigroup              ((<>))
@@ -8,6 +8,11 @@ import           Lib
 import           Test.Hspec
 import           Test.QuickCheck
 import           Test.Hspec.QuickCheck
+
+replaceSlashQuote :: [Char] -> [Char]
+replaceSlashQuote ('\\':'\"':xs) = '\"' : replaceSlashQuote xs
+replaceSlashQuote (x:xs) = x : replaceSlashQuote xs
+replaceSlashQuote [] = []
 
 genLetter :: Gen Char
 genLetter = elements (['A'..'Z'] ++ ['a'..'z'])
@@ -36,6 +41,15 @@ genBadIdent = do
   f <- oneof [ genDigit, genIdentSymbol ]
   rest <- genMixed
   pure $ f : rest
+
+genStringSymbol :: Gen Char
+genStringSymbol = elements [' ', '!', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~']
+
+genNotQuote :: Gen [Char]
+genNotQuote =
+  fmap mconcat $ listOf1 $ oneof [ listOf $ oneof [ genDigit, genLetter, genStringSymbol ]
+                                 , pure ['\\','\"']
+                                 ]
 
 spec :: Spec
 spec = do
@@ -93,3 +107,43 @@ spec = do
       res = parseOnly (assignment <* endOfInput) $ mempty
     in
       res == (Right $ NoAssignment)
+
+  prop "stringSymbol parsed out of possibilities" $ do
+    forAll genStringSymbol $ \x ->
+      let
+        res = parseOnly (stringSymbol <* endOfInput) $ (BSC.singleton x)
+      in
+        res == (Right x)
+
+  it "stringSymbol will NOT parse out a \" symbol" $
+    let
+      res = parseOnly (stringSymbol <* endOfInput) $ "\""
+    in
+      E.isLeft res
+
+  prop "quote doesn't parse any string symbol" $ do
+    forAll genStringSymbol $ \x ->
+      let
+        res = parseOnly (quote <* endOfInput) $ (BSC.singleton x)
+      in
+        E.isLeft res
+        
+  it "quote parses the \" symbol" $
+    let
+      res = parseOnly (quote <* endOfInput) $ "\\\""
+    in
+      res == (Right '"')
+
+  prop "notQuote parses all the things except \"" $ do
+    forAll genNotQuote $ \str ->
+      let
+        res = parseOnly (notQuote <* endOfInput) $ (BSC.pack str)
+      in
+        res == (Right $ replaceSlashQuote str)
+
+  prop "string parses all valid strings, surronded by \" with none in the middle" $ do
+    forAll genNotQuote $ \x ->
+      let
+        res = parseOnly (string <* endOfInput) $ BSC.pack $ "\"" ++ x ++ "\""
+      in
+        res == (Right $ replaceSlashQuote x)

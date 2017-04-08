@@ -9,11 +9,16 @@ module Lib
     , ident
     , Assignment(..)
     , assignment
+    , stringSymbol
+    , quote
+    , notQuote
+    , string
     ) where
 
-import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString       hiding (string)
 import           Data.Attoparsec.ByteString.Char8 (letter_ascii, digit, skipSpace)
 import qualified Data.Attoparsec.ByteString.Char8 as ABC
+-- import qualified Data.ByteString.Char8            as BSC
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
@@ -59,23 +64,53 @@ assignment = ( choice [ (Assignment <$> ident) <* (skipSpace <* ABC.string "<-")
              ) <?> "Assignment malformed"
 
 
--- <stringsymbol> ::= TODO
-identSymbol :: Parser Char
-identSymbol = ABC.satisfy isSymbolIdent <?> "symbol_ident"
+-- <stringsymbol> ::= " ", "!", "#", "$", "%", "&", "\"", "(", ")", "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "@", "[", "\", "]", "^", "_", "`", "{", "|", "}", "~"
+stringSymbol :: Parser Char
+stringSymbol = ABC.satisfy isSymbolString <?> "symbol_string"
 
-isSymbolIdent :: Char -> Bool
-isSymbolIdent c =
-  (c == '-' || c == '_')
+isSymbolString :: Char -> Bool
+isSymbolString c =
+     (c >= ' ' && c <= '!') -- Skip the " char
+  || (c >= '#' && c <= '/')
+  || (c >= ':' && c <= '@')
+  || (c >= '[' && c <= '`')
+  || (c >= '{' && c <= '~')
 
--- <notquote> ::= <letter> <notquote> | <digit> <notquote> | "\"" <notquote> | <stringsymbol> <notquote> | ""
--- <string> ::= """ <notquote> """
--- <stringconcat> ::= <string> | <string> "++" <string>
+quote :: Parser Char
+quote = (ABC.string "\\\"") *> pure '\"'
+
+-- <notQuote> ::= <letter> <notquote> | <digit> <notquote> | "\"" <notquote> | <stringsymbol> <notquote> | ""
+notQuote :: Parser [Char]
+notQuote = many' $ choice [ quote, digit, letter, stringSymbol ]
+
+-- <string> ::= """ <notQuote> """
+string :: Parser [Char] -- TODO: notQuote cant end with '\\'
+string = ABC.char '"' *> notQuote <* ABC.char '"'
+
+-- <stringconcat> ::= <ident> | <string> | <string> "++" <stringconcat> | <ident> "++" <stringconcat>
+data StringConcat
+  = StrIdent Ident
+  | StrString String
+  | StrConcat String StringConcat
+  | StrIdentConcat Ident StringConcat
+  deriving (Show, Eq)
+
+stringConcat :: Parser StringConcat
+stringConcat = error "do this"
+
 -- <declaration> ::= <ident> "=" <stringconcat> ";"
+data Declaration
+  = Declaration Ident StringConcat
+  deriving (Show, Eq)
+
+declaration :: Parser Declaration
+declaration = error "to do"
 
 -- <url> ::= <string> | <ident>
 data Url
   = UrlHardcoded String
   | UrlVariable Ident
+  deriving (Show, Eq)
 
 url :: Parser Url
 url = error "do this"
