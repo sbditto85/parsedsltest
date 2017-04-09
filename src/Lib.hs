@@ -10,8 +10,8 @@ module Lib
     , Assignment(..)
     , assignment
     , stringSymbol
-    , quote
-    , notQuote
+    , escaped
+    , escapedString
     , string
     ) where
 
@@ -64,7 +64,7 @@ assignment = ( choice [ (Assignment <$> ident) <* (skipSpace <* ABC.string "<-")
              ) <?> "Assignment malformed"
 
 
--- <stringsymbol> ::= " ", "!", "#", "$", "%", "&", "\"", "(", ")", "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "@", "[", "\", "]", "^", "_", "`", "{", "|", "}", "~"
+-- <stringsymbol> ::= " ", "!", "#", "$", "%", "&", "\"", "(", ")", "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "@", "[", "]", "^", "_", "`", "{", "|", "}", "~"
 stringSymbol :: Parser Char
 stringSymbol = ABC.satisfy isSymbolString <?> "symbol_string"
 
@@ -73,19 +73,23 @@ isSymbolString c =
      (c >= ' ' && c <= '!') -- Skip the " char
   || (c >= '#' && c <= '/')
   || (c >= ':' && c <= '@')
-  || (c >= '[' && c <= '`')
+  || (c == '[')
+  || (c >= ']' && c <= '`')
   || (c >= '{' && c <= '~')
 
-quote :: Parser Char
-quote = (ABC.string "\\\"") *> pure '\"'
+escaped :: Parser Char
+escaped = choice [ (ABC.string "\\\"") *> pure '"'
+                 , (ABC.string "\\\\") *> pure '\\'
+                 , (ABC.string "\\n") *> pure '\n'
+                 ]
 
--- <notQuote> ::= <letter> <notquote> | <digit> <notquote> | "\"" <notquote> | <stringsymbol> <notquote> | ""
-notQuote :: Parser [Char]
-notQuote = many' $ choice [ quote, digit, letter, stringSymbol ]
+-- <escapedString> ::= <letter> <escapedString> | <digit> <escapedString> | <escaped> <escapedString> | <stringsymbol> <escapedString> | ""
+escapedString :: Parser [Char]
+escapedString = many' $ choice [ escaped, digit, letter, stringSymbol ]
 
--- <string> ::= """ <notQuote> """
-string :: Parser [Char] -- TODO: notQuote cant end with '\\'
-string = ABC.char '"' *> notQuote <* ABC.char '"'
+-- <string> ::= """ <escapedString> """
+string :: Parser [Char] -- TODO: escapedString cant end with '\\'
+string = ABC.char '"' *> escapedString <* ABC.char '"'
 
 -- <stringconcat> ::= <ident> | <string> | <string> "++" <stringconcat> | <ident> "++" <stringconcat>
 data StringConcat

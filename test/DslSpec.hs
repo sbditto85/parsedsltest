@@ -9,10 +9,10 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.Hspec.QuickCheck
 
-replaceSlashQuote :: [Char] -> [Char]
-replaceSlashQuote ('\\':'\"':xs) = '\"' : replaceSlashQuote xs
-replaceSlashQuote (x:xs) = x : replaceSlashQuote xs
-replaceSlashQuote [] = []
+replaceSlash :: [Char] -> [Char]
+replaceSlash ('\\':x:xs) = x : replaceSlashQuote xs
+replaceSlash (x:xs) = x : replaceSlashQuote xs
+replaceSlash [] = []
 
 genLetter :: Gen Char
 genLetter = elements (['A'..'Z'] ++ ['a'..'z'])
@@ -43,14 +43,24 @@ genBadIdent = do
   pure $ f : rest
 
 genStringSymbol :: Gen Char
-genStringSymbol = elements [' ', '!', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~']
+genStringSymbol = elements [' ', '!', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '`', '{', '|', '}', '~']
+
+genEscaped :: Gen [Char]
+genEsacped = oneof [ pure "\\\\"
+                   , pure "\\\""
+                   , pure "\\n"
+                   ]
 
 genNotQuote :: Gen [Char]
 genNotQuote =
   fmap mconcat $ listOf1 $ oneof [ listOf $ oneof [ genDigit, genLetter, genStringSymbol ]
-                                 , pure ['\\','\"']
+                                 , pure "\\\""
                                  ]
 
+genString :: Gen [Char]
+genString =
+  pure '\"' <> genNotQuote <> oneof [ genDigit, genLetter ] <> pure '\"'
+  
 spec :: Spec
 spec = do
   prop "letter parses out all letters" $ do
@@ -128,22 +138,23 @@ spec = do
       in
         E.isLeft res
         
-  it "quote parses the \" symbol" $
-    let
-      res = parseOnly (quote <* endOfInput) $ "\\\""
-    in
-      res == (Right '"')
+  prop "escaped parses the escaped symbols" $ do
+    forAll genEscaped $ \str ->
+      let
+        res = parseOnly (escaped <* endOfInput) $ (BSC.pack str)
+      in
+        res == (Right $ replaceSlash str)
 
   prop "notQuote parses all the things except \"" $ do
     forAll genNotQuote $ \str ->
       let
         res = parseOnly (notQuote <* endOfInput) $ (BSC.pack str)
       in
-        res == (Right $ replaceSlashQuote str)
+        res == (Right $ replaceSlash str)
 
   prop "string parses all valid strings, surronded by \" with none in the middle" $ do
-    forAll genNotQuote $ \x ->
+    forAll genString $ \x ->
       let
         res = parseOnly (string <* endOfInput) $ BSC.pack $ "\"" ++ x ++ "\""
       in
-        res == (Right $ replaceSlashQuote x)
+        res == (Right $ replaceSlash x)
