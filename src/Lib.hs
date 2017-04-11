@@ -13,12 +13,18 @@ module Lib
     , escaped
     , escapedString
     , string
+    , StringConcat(..)
+    , stringConcat
+    , declaration
+    , url
+    , httpGet
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
 import           Data.Attoparsec.ByteString.Char8 (letter_ascii, digit, skipSpace)
 import qualified Data.Attoparsec.ByteString.Char8 as ABC
 -- import qualified Data.ByteString.Char8            as BSC
+import           Text.RawString.QQ
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
@@ -78,9 +84,9 @@ isSymbolString c =
   || (c >= '{' && c <= '~')
 
 escaped :: Parser Char
-escaped = choice [ (ABC.string "\\\"") *> pure '"'
-                 , (ABC.string "\\\\") *> pure '\\'
-                 , (ABC.string "\\n") *> pure '\n'
+escaped = choice [ (ABC.string [r|\"|]) *> pure '\"'
+                 , (ABC.string [r|\\|]) *> pure '\\'
+                 , (ABC.string [r|\n|]) *> pure '\n'
                  ]
 
 -- <escapedString> ::= <letter> <escapedString> | <digit> <escapedString> | <escaped> <escapedString> | <stringsymbol> <escapedString> | ""
@@ -93,14 +99,18 @@ string = ABC.char '"' *> escapedString <* ABC.char '"'
 
 -- <stringconcat> ::= <ident> | <string> | <string> "++" <stringconcat> | <ident> "++" <stringconcat>
 data StringConcat
-  = StrIdent Ident
-  | StrString String
+  = StrIdentConcat Ident StringConcat
   | StrConcat String StringConcat
-  | StrIdentConcat Ident StringConcat
+  | StrIdent Ident
+  | StrString String
   deriving (Show, Eq)
 
 stringConcat :: Parser StringConcat
-stringConcat = error "do this"
+stringConcat = choice [ StrIdentConcat <$> ident <*> (skipSpace *> ABC.string "++" *> skipSpace *> stringConcat)
+                      , StrConcat <$> string <*> (skipSpace *> ABC.string "++" *> skipSpace *> stringConcat)
+                      , StrIdent <$> ident
+                      , StrString <$> string
+                      ]
 
 -- <declaration> ::= <ident> "=" <stringconcat> ";"
 data Declaration
@@ -110,9 +120,9 @@ data Declaration
 declaration :: Parser Declaration
 declaration = error "to do"
 
--- <url> ::= <string> | <ident>
+-- <url> ::= <stringconcat> | <ident>
 data Url
-  = UrlHardcoded String
+  = UrlHardcoded StringConcat
   | UrlVariable Ident
   deriving (Show, Eq)
 
