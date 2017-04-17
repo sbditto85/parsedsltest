@@ -15,8 +15,8 @@ module Lib
     , string
     , StringConcat(..)
     , stringConcat
+    , Declaration(..)
     , declaration
-    , url
     , httpGet
     ) where
 
@@ -59,7 +59,7 @@ ident = ((Ident <$>) $ (:) <$> letter <*> mixed) <?> "Identifier couldn't be fou
 
 -- <assignemnt> ::= <ident> "<-" | ""
 data Assignment
-  = Assignment Ident
+  = Assignment !Ident
   | NoAssignment
   deriving (Show, Eq)
 
@@ -99,10 +99,10 @@ string = ABC.char '"' *> escapedString <* ABC.char '"'
 
 -- <stringconcat> ::= <ident> | <string> | <string> "++" <stringconcat> | <ident> "++" <stringconcat>
 data StringConcat
-  = StrIdentConcat Ident StringConcat
-  | StrConcat String StringConcat
-  | StrIdent Ident
-  | StrString String
+  = StrIdentConcat !Ident !StringConcat
+  | StrConcat !String !StringConcat
+  | StrIdent !Ident
+  | StrString !String
   deriving (Show, Eq)
 
 stringConcat :: Parser StringConcat
@@ -114,27 +114,19 @@ stringConcat = choice [ StrIdentConcat <$> ident <*> (skipSpace *> ABC.string "+
 
 -- <declaration> ::= <ident> "=" <stringconcat> ";"
 data Declaration
-  = Declaration Ident StringConcat
+  = Declaration !Ident !StringConcat
   deriving (Show, Eq)
 
 declaration :: Parser Declaration
-declaration = error "to do"
+declaration =
+  Declaration <$> ident <*> (skipSpace *> "=" *> skipSpace *> stringConcat)
 
--- <url> ::= <stringconcat> | <ident>
-data Url
-  = UrlHardcoded StringConcat
-  | UrlVariable Ident
-  deriving (Show, Eq)
-
-url :: Parser Url
-url = error "do this"
-
--- <httpGet> ::= "httpGet" <url>
+-- <httpGet> ::= "httpGet" <stringconcat>
 newtype HttpGet
-  = HttpGet Url deriving (Show, Eq)
+  = HttpGet StringConcat deriving (Show, Eq)
 
 httpGet :: Parser HttpGet
-httpGet = error "do this" -- ABC.string "httpGet" *> skipSpace *>  
+httpGet = HttpGet <$> (ABC.string "httpGet" *> skipSpace *> stringConcat <* skipSpace)
 
 -- <method> ::= <cameracolumn> | <liveunitcolumn> | <parseJson> | <httpGet> | <httpPost>
 
@@ -152,7 +144,7 @@ BNF DSL
 <postparam> ::= "(" <string> "," <postvalue> ")"
 <postparamlist> ::= <postparam> | <postparam> "," <postparamlist>
 <postparams> ::= "[" <postparamlist> "]"
-<httpPost> ::= "httpPost" <url> <postparams>
+<httpPost> ::= "httpPost" <stringconcat> <postparams>
 
 <errorHandler> ::= "log" <string> | "email" <string>
 <error> ::= ": handleError" <digits> <errorHanlder> | ""
