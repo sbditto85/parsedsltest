@@ -2,13 +2,20 @@
 
 module Main where
 
-import Criterion.Main
+import           Data.Attoparsec.ByteString  hiding (string)
+import           Criterion.Main
+import qualified Data.ByteString.Char8       as BSC
+import           Generators
+import           Lib
 
-fib :: Int -> Int
-fib 0 = 1
-fib 1 = 1
-fib n = fib (n-1) + fib (n-2)
+d :: Declaration
+d = Declaration (Ident "lulz") (StrIdentConcat (Ident "you") (StrString "are awesome!")) 
+
+input :: BSC.ByteString
+input = BSC.pack $ declarationToString d
 
 main :: IO ()
-main = defaultMain $ [ bench "fib" $ whnf fib 20
+main = defaultMain $ [ bench "declaration parse" $ whnf
+                       (parseOnly (declaration <* endOfInput))
+                       (input)
                      ]

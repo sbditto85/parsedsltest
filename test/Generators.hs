@@ -128,4 +128,3 @@ genDeclarationToParsed (Declaration i strConcat) = Declaration i $ genStrConcatT
 
 -- | httpGet generator stuff
 -- TODO: do this
-.
