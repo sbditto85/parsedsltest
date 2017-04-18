@@ -17,7 +17,10 @@ module Lib
     , stringConcat
     , Declaration(..)
     , declaration
+    , HttpGet
     , httpGet
+    , Method(..)
+    , method
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -64,7 +67,7 @@ data Assignment
   deriving (Show, Eq)
 
 assignment :: Parser Assignment
-assignment = ( choice [ (Assignment <$> ident) <* (skipSpace <* ABC.string "<-")
+assignment = ( choice [ (Assignment <$> ident) <* (skipSpace <* ABC.string "<-" <* skipSpace)
                       , pure NoAssignment
                       ]
              ) <?> "Assignment malformed"
@@ -119,7 +122,7 @@ data Declaration
 
 declaration :: Parser Declaration
 declaration =
-  Declaration <$> ident <*> (skipSpace *> "=" *> skipSpace *> stringConcat)
+  Declaration <$> ident <*> (skipSpace *> ABC.string "=" *> skipSpace *> stringConcat <* skipSpace <* ABC.string ";")
 
 -- <httpGet> ::= "httpGet" <stringconcat>
 newtype HttpGet
@@ -129,6 +132,16 @@ httpGet :: Parser HttpGet
 httpGet = HttpGet <$> (ABC.string "httpGet" *> skipSpace *> stringConcat <* skipSpace)
 
 -- <method> ::= <cameracolumn> | <liveunitcolumn> | <parseJson> | <httpGet> | <httpPost>
+data Method
+  = MethodHttpGet !HttpGet
+
+method :: Parser Method
+method = choice [ MethodHttpGet <$> httpGet
+                ]
+         
+-- <errorHandler> ::= "log" <string> | "email" <string>
+
+-- <error> ::= ": handleError" <digits> <errorHanlder> | ""
 
 -- <action> ::= <assignment> <method> <error> ";"
 
@@ -146,8 +159,7 @@ BNF DSL
 <postparams> ::= "[" <postparamlist> "]"
 <httpPost> ::= "httpPost" <stringconcat> <postparams>
 
-<errorHandler> ::= "log" <string> | "email" <string>
-<error> ::= ": handleError" <digits> <errorHanlder> | ""
+
 
 -- <declarations> ::= <declaration> | <declaration><declarations>
 <withCameraId> ::= "withCameraId" <ident>

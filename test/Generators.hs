@@ -120,11 +120,16 @@ genDeclaration = do
   Declaration <$> (Ident <$> genIdent) <*> genStringConcat
 
 declarationToString :: Declaration -> String
-declarationToString (Declaration (Ident i) strConcat) = i ++ " = " ++ (stringConcatToString strConcat)
+declarationToString (Declaration (Ident i) strConcat) = i ++ " = " ++ (stringConcatToString strConcat) ++ ";"
 
 genDeclarationToParsed :: Declaration -> Declaration
 genDeclarationToParsed (Declaration i strConcat) = Declaration i $ genStrConcatToParsed strConcat 
 
 
 -- | httpGet generator stuff
--- TODO: do this
+genHttpGet :: Gen HttpGet
+genHttpGet = error "todo"
+
+-- | method generator stuff
+genMethod :: Gen Method
+genMethod = error "todo"

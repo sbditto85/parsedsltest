@@ -127,3 +127,6 @@ spec = do
 
   prop "httpGet works for all the url types" $ do
     pending
+
+  prop "method parses all type of methods" $ do
+    pending
