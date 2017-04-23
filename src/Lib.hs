@@ -17,10 +17,16 @@ module Lib
     , stringConcat
     , Declaration(..)
     , declaration
-    , HttpGet
+    , HttpGet(..)
     , httpGet
     , Method(..)
     , method
+    , ErrorHandler(..)
+    , errorHandler
+    , HandleError(..)
+    , handleError
+    , Action(..)
+    , action
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -38,8 +44,8 @@ letter = letter_ascii <?> "letter not found"
 
 -- <digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 -- <digits> ::= <digit> | <digit><digits>
-digits :: Parser [Char]
-digits = many1 digit
+digits :: Parser Word
+digits = ABC.decimal
 
 -- <symbol> ::=  "-" | "_"
 identSymbol :: Parser Char
@@ -134,16 +140,54 @@ httpGet = HttpGet <$> (ABC.string "httpGet" *> skipSpace *> stringConcat <* skip
 -- <method> ::= <cameracolumn> | <liveunitcolumn> | <parseJson> | <httpGet> | <httpPost>
 data Method
   = MethodHttpGet !HttpGet
+  deriving (Show, Eq)
 
 method :: Parser Method
 method = choice [ MethodHttpGet <$> httpGet
                 ]
          
--- <errorHandler> ::= "log" <string> | "email" <string>
+-- <errorHandler> ::= "log" <stringconcat> | "email" <stringconcat>
+data ErrorHandler
+  = ErrorHandlerLog StringConcat
+  | ErrorHandlerEmail StringConcat
+  deriving (Show, Eq)
 
--- <error> ::= ": handleError" <digits> <errorHanlder> | ""
+-- | how should an error be handled
+errorHandler :: Parser ErrorHandler
+errorHandler =
+  choice [ ErrorHandlerLog <$> (ABC.string "log" *> skipSpace *> stringConcat <* skipSpace)
+         , ErrorHandlerEmail <$> (ABC.string "email" *> skipSpace *> stringConcat <* skipSpace)
+         ]
 
--- <action> ::= <assignment> <method> <error> ";"
+-- <handleError> ::= ": handleError" <digits> <errorHanlder> <error> | ""
+type StatusCode = Word
+data HandleError
+  = HandleError StatusCode ErrorHandler
+  deriving (Show, Eq)
+
+
+-- | should the error be handled or not? and what status code should it have
+handleError :: Parser [ HandleError ]
+handleError = many' $ HandleError <$> (ABC.string ": handleError" *> skipSpace *> digits <* skipSpace) <*> errorHandler
+
+
+-- <action> ::= <assignment> <method> <handleError> ";"
+data Action
+  = Action { actionAssignment :: Assignment
+           , actionMethod :: Method
+           , actionHandleError :: [ HandleError ]
+           } deriving (Show, Eq)
+
+action :: Parser Action
+action = (Action <$> assignment <*> (skipSpace *> method) <*> (skipSpace *> handleError))
+  <* skipSpace
+  <* ABC.string ";"
+  <* skipSpace
+
+-- <actions> ::= <declaration> <actions> | <action> <actions> | <action> | <declaration>
+-- <withCameraId> ::= "withCameraId" <ident>
+-- <withLiveUnitId> ::= "withLiveUnitId" <ident>
+-- <initFunc> ::= <withCameraId> | <withLiveUnitId>
 
 {-
 BNF DSL
@@ -161,17 +205,14 @@ BNF DSL
 
 
 
--- <declarations> ::= <declaration> | <declaration><declarations>
-<withCameraId> ::= "withCameraId" <ident>
-<withLiveUnitId> ::= "withLiveUnitId" <ident>
-<initFunc> ::= <withCameraId> | <withLiveUnitId>
+
 <responseJson> ::= "responseJson"
 <jsonvalue> ::= <ident> | <string>
 <jsonparam> ::= <string> ":" <jsonvalue>
 <jsonparamlist> ::= <jsonparam> | <jsonparam> "," <jsonparamlist>
 <jsonObject> ::= "{" <jsonparamlist> "}"
 <response> ::= <responseJson> <digits> <jsonObject>
-<systemCall> ::= <initFunc> "{" <declarations> "}" <response>
+<systemCall> ::= <initFunc> "{" <actions> "}" <response> <error>
 -}
 
 
@@ -184,6 +225,6 @@ withCameraId camId {
   resp <- httpGet url                                          : handleError 100 log "request to blah sucked";
   myValue <- parseJson ["the","path","to","value"]             : handleError 101 log "parsing value sucked";
   httpPost url [ ("my", myValue), ("camera", cameraPublicIp) ] : handleError 102 log "posting to place sucked";
-} responseJson 0 { "myValue" : myValue, "url" : url }
+} responseJson 0 { "myValue" : myValue, "url" : url } : handlerError 103 log "the whole thing just sucked"
 
 -}

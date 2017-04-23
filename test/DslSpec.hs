@@ -3,6 +3,7 @@ module DslSpec where
 import           Data.Attoparsec.ByteString  hiding (string)
 import qualified Data.ByteString.Char8       as BSC
 import qualified Data.Either                 as E
+import qualified Data.List                   as L
 import           Data.Semigroup              ((<>))
 -- import qualified Debug.Trace                 as D
 import           Generators
@@ -25,7 +26,7 @@ spec = do
   prop "digits parses out digits" $ do
     forAll genDigits $ \x ->
       let
-        res = parseOnly (digits <* endOfInput) $ BSC.pack x
+        res = parseOnly (digits <* endOfInput) $ BSC.pack $ show x
       in
         res == (Right x)
 
@@ -126,7 +127,49 @@ spec = do
         res == (Right $ genDeclarationToParsed d)
 
   prop "httpGet works for all the url types" $ do
-    pending
+    forAll genHttpGet $ \h ->
+      let
+        res = parseOnly (httpGet <* endOfInput) $ BSC.pack $ httpGetToString $ h
+      in
+        res == (Right $ genHttpGetToParsed h)
 
   prop "method parses all type of methods" $ do
-    pending
+    forAll genMethod $ \m ->
+      let
+        res = parseOnly (method <* endOfInput) $ BSC.pack $ methodToString $ m
+      in
+        res == (Right $ genMethodToParsed m)
+
+  prop "errorHandler parses all type of error handlers" $ do
+    forAll genErrorHandler $ \eH ->
+      let
+        res = parseOnly (errorHandler <* endOfInput) $ BSC.pack $ errorHandlerToString $ eH
+      in
+        res == (Right $ genErrorHandlerToParsed eH)
+
+  prop "handleError parses the handling of an error" $ do
+    forAll genHandleError $ \hEs ->
+      let
+        res = parseOnly (handleError <* endOfInput) $ BSC.pack $ handleErrorToString hEs
+      in
+        res == (Right $ [ genHandleErrorToParsed hEs ])
+
+  it "handleError will parse an empty string to an empty list" $
+    let
+      res = parseOnly (handleError <* endOfInput) $ ""
+    in
+      res == (Right [])
+
+  prop "handleError parses the handling of multiple handleErrors" $ do
+    forAll genHandleErrors $ \hEs ->
+      let
+        res = parseOnly (handleError <* endOfInput) $ BSC.pack $ mconcat $ L.intersperse " " $ handleErrorToString <$> hEs
+      in
+        res == (Right $ genHandleErrorToParsed <$> hEs)
+
+  prop "action parses all actions" $ do
+    forAll genAction $ \a ->
+      let
+        res = parseOnly (action <* endOfInput) $ BSC.pack $ actionToString a
+      in
+        res == (Right $ genActionToParsed a)
