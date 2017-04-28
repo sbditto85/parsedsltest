@@ -173,3 +173,31 @@ spec = do
         res = parseOnly (action <* endOfInput) $ BSC.pack $ actionToString a
       in
         res == (Right $ genActionToParsed a)
+
+  prop "actions parses a group of declarations and actions" $ do
+    forAll genActions $ \a ->
+      let
+        res = parseOnly (actions <* endOfInput) $ BSC.pack $ actionsToString a
+      in
+        res == (Right $ genActionsToParsed a)
+
+  prop "withCameraId parses all the withCameraId possibilities" $ do
+    forAll genWithCameraId $ \wCI ->
+      let
+        res = parseOnly (withCameraId <* endOfInput) $ BSC.pack $ withCameraIdToString wCI
+      in
+        res == (Right wCI)
+
+  prop "withLiveUnitId parses all the withLiveUnitId possibilities" $ do
+    forAll genWithLiveUnitId $ \wLUI ->
+      let
+        res = parseOnly (withLiveUnitId <* endOfInput) $ BSC.pack $ withLiveUnitIdToString wLUI
+      in
+        res == (Right wLUI)
+
+  prop "initFuncId parses all the initFunc possibilities" $ do
+    forAll genInitFunc $ \iF ->
+      let
+        res = parseOnly (initFunc <* endOfInput) $ BSC.pack $ initFuncToString iF
+      in
+        res == (Right iF)

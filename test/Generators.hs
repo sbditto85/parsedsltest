@@ -211,3 +211,47 @@ actionToString (Action{..}) = assignmentToString actionAssignment ++ methodToStr
 
 genActionToParsed :: Action -> Action
 genActionToParsed (Action{..}) = Action actionAssignment (genMethodToParsed actionMethod) (genHandleErrorToParsed <$> actionHandleError)
+
+-- | actions generator stuff
+genActions :: Gen Actions
+-- genActions = Actions <$> (listOf $ oneof [ IsAction <$> genAction  -- Takes a few seconds but works
+genActions = Actions <$> (vectorOf 2 $ oneof [ IsAction <$> genAction
+                                             , IsDeclaration <$> genDeclaration
+                                             ]
+                         )
+
+actionsToString :: Actions -> String
+actionsToString (Actions actionOrDeclarations) = mconcat $ L.intersperse "\n" $ actOrDecToString <$> actionOrDeclarations
+  where
+    actOrDecToString (IsAction action') = actionToString action'
+    actOrDecToString (IsDeclaration declaration') = declarationToString declaration'
+
+genActionsToParsed :: Actions -> Actions
+genActionsToParsed (Actions actionOrDeclarations) = Actions $ genActOrGenDecToParsed <$> actionOrDeclarations
+      where
+        genActOrGenDecToParsed (IsAction action') = IsAction $ genActionToParsed action'
+        genActOrGenDecToParsed (IsDeclaration declaration') = IsDeclaration $ genDeclarationToParsed declaration'
+
+-- | WithCameraId generator stuff
+genWithCameraId :: Gen WithCameraId
+genWithCameraId = WithCameraId <$> (Ident <$> genIdent)
+
+withCameraIdToString :: WithCameraId -> String
+withCameraIdToString (WithCameraId (Ident i)) = "withCameraId " ++ i
+
+-- | WithLiveUnitId generator stuff
+genWithLiveUnitId :: Gen WithLiveUnitId
+genWithLiveUnitId = WithLiveUnitId <$> (Ident <$> genIdent)
+
+withLiveUnitIdToString :: WithLiveUnitId -> String
+withLiveUnitIdToString (WithLiveUnitId (Ident i)) = "withLiveUnitId " ++ i
+
+-- | InitFunc generator stuff
+genInitFunc :: Gen InitFunc
+genInitFunc = oneof [ InitWithCameraId <$> genWithCameraId
+                    , InitWithLiveUnitId <$> genWithLiveUnitId
+                    ]
+
+initFuncToString :: InitFunc -> String
+initFuncToString (InitWithCameraId withCameraId') = withCameraIdToString withCameraId'
+initFuncToString (InitWithLiveUnitId withLiveUnitId') = withLiveUnitIdToString withLiveUnitId'

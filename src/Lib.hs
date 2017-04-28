@@ -27,6 +27,15 @@ module Lib
     , handleError
     , Action(..)
     , action
+    , ActionOrDeclaration(..)
+    , Actions(..)
+    , actions
+    , WithCameraId(..)
+    , withCameraId
+    , WithLiveUnitId(..)
+    , withLiveUnitId
+    , InitFunc(..)
+    , initFunc
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -185,9 +194,46 @@ action = (Action <$> assignment <*> (skipSpace *> method) <*> (skipSpace *> hand
   <* skipSpace
 
 -- <actions> ::= <declaration> <actions> | <action> <actions> | <action> | <declaration>
+data ActionOrDeclaration
+  = IsAction Action
+  | IsDeclaration Declaration
+  deriving (Show, Eq)
+
+newtype Actions
+  = Actions [ ActionOrDeclaration ]
+  deriving (Show, Eq)
+
+actions :: Parser Actions
+actions = Actions <$> (many' $ choice [ IsAction <$> action <* skipSpace
+                                      , IsDeclaration <$> declaration <* skipSpace
+                                      ])
+
 -- <withCameraId> ::= "withCameraId" <ident>
+newtype WithCameraId
+  = WithCameraId Ident
+  deriving (Show, Eq)
+
+withCameraId :: Parser WithCameraId
+withCameraId = WithCameraId <$> (ABC.string "withCameraId" *> skipSpace *> ident)
+
 -- <withLiveUnitId> ::= "withLiveUnitId" <ident>
+newtype WithLiveUnitId
+  = WithLiveUnitId Ident
+  deriving (Show, Eq)
+
+withLiveUnitId :: Parser WithLiveUnitId
+withLiveUnitId = WithLiveUnitId <$> (ABC.string "withLiveUnitId" *> skipSpace *> ident)
+
 -- <initFunc> ::= <withCameraId> | <withLiveUnitId>
+data InitFunc
+  = InitWithCameraId !WithCameraId
+  | InitWithLiveUnitId !WithLiveUnitId
+  deriving (Show, Eq)
+
+initFunc :: Parser InitFunc
+initFunc = choice [ InitWithCameraId <$> withCameraId
+                  , InitWithLiveUnitId <$> withLiveUnitId
+                  ]
 
 {-
 BNF DSL
@@ -195,7 +241,7 @@ BNF DSL
 <cameracolumn> ::= "cameraColumn" <string> <ident>
 <liveunitcolumn> ::= "liveUnitColumn" <string> <ident>
 <strings> ::= <string> | <string> "," <strings>
-<stringArray> ::= "[" <strings> "]"
+<stringArray> ::= "[" <strings> "]" 
 <parseJson> ::= "parseJson" <stringArray>
 <postvalue> ::= <string> | <ident>
 <postparam> ::= "(" <string> "," <postvalue> ")"
