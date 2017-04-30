@@ -201,3 +201,10 @@ spec = do
         res = parseOnly (initFunc <* endOfInput) $ BSC.pack $ initFuncToString iF
       in
         res == (Right iF)
+
+  prop "jsonValue parses all the jsonValue possibilities" $ do
+    forAll genJsonValue $ \jV ->
+      let
+        res = parseOnly (jsonValue <* endOfInput) $ BSC.pack $ jsonValueToString jV
+      in
+        res == (Right $ genJsonValueToParsed jV)

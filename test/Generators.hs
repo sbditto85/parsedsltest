@@ -255,3 +255,13 @@ genInitFunc = oneof [ InitWithCameraId <$> genWithCameraId
 initFuncToString :: InitFunc -> String
 initFuncToString (InitWithCameraId withCameraId') = withCameraIdToString withCameraId'
 initFuncToString (InitWithLiveUnitId withLiveUnitId') = withLiveUnitIdToString withLiveUnitId'
+
+-- | JsonValue generator stuff
+genJsonValue :: Gen JsonValue
+genJsonValue = JsonValue <$> genStringConcat
+
+jsonValueToString :: JsonValue -> String
+jsonValueToString (JsonValue stringConcat') = stringConcatToString stringConcat'
+
+genJsonValueToParsed :: JsonValue -> JsonValue
+genJsonValueToParsed (JsonValue strConcat) = JsonValue $ genStrConcatToParsed strConcat

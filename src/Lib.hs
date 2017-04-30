@@ -36,6 +36,8 @@ module Lib
     , withLiveUnitId
     , InitFunc(..)
     , initFunc
+    , JsonValue(..)
+    , jsonValue
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -235,6 +237,27 @@ initFunc = choice [ InitWithCameraId <$> withCameraId
                   , InitWithLiveUnitId <$> withLiveUnitId
                   ]
 
+-- <jsonvalue> ::= <stringConcat>
+newtype JsonValue
+  = JsonValue StringConcat
+  deriving (Show, Eq)
+
+jsonValue :: Parser JsonValue
+jsonValue = JsonValue <$> stringConcat
+            
+-- <jsonparam> ::= <string> ":" <jsonvalue>
+
+
+
+-- <jsonparamlist> ::= <jsonparam> | <jsonparam> "," <jsonparamlist>
+
+-- <jsonObject> ::= "{" <jsonparamlist> "}"
+
+-- <response> ::= "responseJson" <digits> <jsonObject>
+
+-- <systemCall> ::= <initFunc> "{" <actions> "}" <response> <error>
+
+
 {-
 BNF DSL
 
@@ -252,13 +275,6 @@ BNF DSL
 
 
 
-<responseJson> ::= "responseJson"
-<jsonvalue> ::= <ident> | <string>
-<jsonparam> ::= <string> ":" <jsonvalue>
-<jsonparamlist> ::= <jsonparam> | <jsonparam> "," <jsonparamlist>
-<jsonObject> ::= "{" <jsonparamlist> "}"
-<response> ::= <responseJson> <digits> <jsonObject>
-<systemCall> ::= <initFunc> "{" <actions> "}" <response> <error>
 -}
 
 
