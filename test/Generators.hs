@@ -265,3 +265,14 @@ jsonValueToString (JsonValue stringConcat') = stringConcatToString stringConcat'
 
 genJsonValueToParsed :: JsonValue -> JsonValue
 genJsonValueToParsed (JsonValue strConcat) = JsonValue $ genStrConcatToParsed strConcat
+
+
+-- | JsonParam generator stuff
+genJsonParam :: Gen JsonParam
+genJsonParam = JsonParam <$> genMixed <*> genJsonValue
+
+jsonParamToString :: JsonParam -> String
+jsonParamToString (JsonParam key value) = "\"" ++ key ++ "\" : " ++ (jsonValueToString value)
+
+genJsonParamToParsed :: JsonParam -> JsonParam
+genJsonParamToParsed (JsonParam key value) = (JsonParam key (genJsonValueToParsed value))

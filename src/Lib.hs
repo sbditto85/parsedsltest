@@ -38,6 +38,8 @@ module Lib
     , initFunc
     , JsonValue(..)
     , jsonValue
+    , JsonParam(..)
+    , jsonParam
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -139,7 +141,7 @@ data Declaration
 
 declaration :: Parser Declaration
 declaration =
-  Declaration <$> ident <*> (skipSpace *> ABC.string "=" *> skipSpace *> stringConcat <* skipSpace <* ABC.string ";")
+  Declaration <$> ident <*> (skipSpace *> ABC.char '=' *> skipSpace *> stringConcat <* skipSpace <* ABC.char ';')
 
 -- <httpGet> ::= "httpGet" <stringconcat>
 newtype HttpGet
@@ -192,7 +194,7 @@ data Action
 action :: Parser Action
 action = (Action <$> assignment <*> (skipSpace *> method) <*> (skipSpace *> handleError))
   <* skipSpace
-  <* ABC.string ";"
+  <* ABC.char ';'
   <* skipSpace
 
 -- <actions> ::= <declaration> <actions> | <action> <actions> | <action> | <declaration>
@@ -245,9 +247,14 @@ newtype JsonValue
 jsonValue :: Parser JsonValue
 jsonValue = JsonValue <$> stringConcat
             
--- <jsonparam> ::= <string> ":" <jsonvalue>
+-- <jsonparam> ::= "\"" <mixed> "\"" ":" <jsonvalue>
+data JsonParam
+  = JsonParam { jsonParamKey :: String
+              , jsonParamValue :: JsonValue
+              } deriving (Show, Eq)
 
-
+jsonParam :: Parser JsonParam
+jsonParam = JsonParam <$> (ABC.char '\"' *> mixed <* ABC.char '\"') <*> (skipSpace *> ABC.char ':' *> skipSpace *> jsonValue)
 
 -- <jsonparamlist> ::= <jsonparam> | <jsonparam> "," <jsonparamlist>
 
