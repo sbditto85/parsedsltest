@@ -276,3 +276,59 @@ jsonParamToString (JsonParam key value) = "\"" ++ key ++ "\" : " ++ (jsonValueTo
 
 genJsonParamToParsed :: JsonParam -> JsonParam
 genJsonParamToParsed (JsonParam key value) = (JsonParam key (genJsonValueToParsed value))
+
+
+-- | JsonParamList generator stuff
+genJsonParamList :: Gen JsonParamList
+genJsonParamList = JsonParamList <$> vectorOf 2 genJsonParam
+-- genJsonParamList = JsonParamList <$> listOf1 genJsonParam -- works but takes longer
+
+jsonParamListToString :: JsonParamList -> String
+jsonParamListToString (JsonParamList jPList) = mconcat $ L.intersperse ", " $ jsonParamToString <$> jPList
+
+genJsonParamListToParsed :: JsonParamList -> JsonParamList
+genJsonParamListToParsed (JsonParamList jPList) = JsonParamList $ genJsonParamToParsed <$> jPList
+
+
+-- | JsonObject generator stuff
+genJsonObject :: Gen JsonObject
+genJsonObject = JsonObject <$> genJsonParamList
+
+jsonObjectToString :: JsonObject -> String
+jsonObjectToString (JsonObject jsonParamList') = "{ " ++ (jsonParamListToString jsonParamList') ++ " }"
+
+genJsonObjectToParsed :: JsonObject -> JsonObject
+genJsonObjectToParsed (JsonObject jsonParamList') = JsonObject $ genJsonParamListToParsed jsonParamList'
+
+
+-- | response generator stuffs
+genResponse :: Gen Response
+genResponse = Response <$> genDigits <*> genJsonObject
+
+responseToString :: Response -> String
+responseToString (Response status jsonObject') = "responseJson " ++ (show status) ++ (jsonObjectToString jsonObject')
+
+genResponseToParsed :: Response -> Response
+genResponseToParsed (Response status jsonObject') = Response status (genJsonObjectToParsed jsonObject')
+
+
+-- | system call generator stuffs
+genSystemCall :: Gen SystemCall
+genSystemCall = SystemCall <$> genInitFunc <*> genActions <*> genResponse <*> genHandleErrors
+
+systemCallToString :: SystemCall -> String
+systemCallToString (SystemCall initFunc' actions' response' handleErrors')
+  = (initFuncToString initFunc')
+  ++ " { "
+  ++ (actionsToString actions')
+  ++ " } "
+  ++ (responseToString response')
+  ++ (mconcat $ L.intersperse " " $ handleErrorToString <$> handleErrors')
+
+genSystemCallToParsed :: SystemCall -> SystemCall
+genSystemCallToParsed (SystemCall initFunc' actions' response' handleErrors')
+  = SystemCall
+    initFunc'
+    (genActionsToParsed actions')
+    (genResponseToParsed response')
+    (genHandleErrorToParsed <$> handleErrors')

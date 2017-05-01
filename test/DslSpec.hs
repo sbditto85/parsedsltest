@@ -215,3 +215,31 @@ spec = do
         res = parseOnly (jsonParam <* endOfInput) $ BSC.pack $ jsonParamToString jP
       in
         res == (Right $ genJsonParamToParsed jP)
+
+  prop "jsonParamList parses all the jsonParamList possibilities" $ do
+    forAll genJsonParamList $ \jP ->
+      let
+        res = parseOnly (jsonParamList <* endOfInput) $ BSC.pack $ jsonParamListToString jP
+      in
+        res == (Right $ genJsonParamListToParsed jP)
+
+  prop "jsonObject parses all the jsonObject possibilities" $ do
+    forAll genJsonObject $ \jO ->
+      let
+        res = parseOnly (jsonObject <* endOfInput) $ BSC.pack $ jsonObjectToString jO
+      in
+        res == (Right $ genJsonObjectToParsed jO)
+
+  prop "response parses all the response possibilities" $ do
+    forAll genResponse $ \r ->
+      let
+        res = parseOnly (response <* endOfInput) $ BSC.pack $ responseToString r
+      in
+        res == (Right $ genResponseToParsed r)
+
+  prop "systemCall parses all the systemCall possibilities" $ do
+    forAll genSystemCall $ \sC ->
+      let
+        res = parseOnly (systemCall <* endOfInput) $ BSC.pack $ systemCallToString sC
+      in
+        res == (Right $ genSystemCallToParsed sC)

@@ -40,6 +40,14 @@ module Lib
     , jsonValue
     , JsonParam(..)
     , jsonParam
+    , JsonParamList(..)
+    , jsonParamList
+    , JsonObject(..)
+    , jsonObject
+    , Response(..)
+    , response
+    , SystemCall(..)
+    , systemCall
     ) where
 
 import           Data.Attoparsec.ByteString       hiding (string)
@@ -172,7 +180,7 @@ errorHandler =
          , ErrorHandlerEmail <$> (ABC.string "email" *> skipSpace *> stringConcat <* skipSpace)
          ]
 
--- <handleError> ::= ": handleError" <digits> <errorHanlder> <error> | ""
+-- <handleError> ::= ": handleError" <digits> <errorHanlder> <handleError> | ""
 type StatusCode = Word
 data HandleError
   = HandleError StatusCode ErrorHandler
@@ -257,13 +265,42 @@ jsonParam :: Parser JsonParam
 jsonParam = JsonParam <$> (ABC.char '\"' *> mixed <* ABC.char '\"') <*> (skipSpace *> ABC.char ':' *> skipSpace *> jsonValue)
 
 -- <jsonparamlist> ::= <jsonparam> | <jsonparam> "," <jsonparamlist>
+newtype JsonParamList
+  = JsonParamList [ JsonParam ]
+  deriving (Show, Eq)
+
+jsonParamList :: Parser JsonParamList
+jsonParamList = JsonParamList <$> (jsonParam `sepBy1` (skipSpace *> ABC.char ',' <* skipSpace))
 
 -- <jsonObject> ::= "{" <jsonparamlist> "}"
+newtype JsonObject
+  = JsonObject JsonParamList
+  deriving (Show, Eq)
+
+jsonObject :: Parser JsonObject
+jsonObject = ABC.char '{' *> skipSpace *> (JsonObject <$> jsonParamList) <* skipSpace <* ABC.char '}' <?> "JSON Object not setup properly"
 
 -- <response> ::= "responseJson" <digits> <jsonObject>
+type ResponseCode = Word
+data Response
+  = Response ResponseCode JsonObject
+  deriving (Show, Eq)
 
--- <systemCall> ::= <initFunc> "{" <actions> "}" <response> <error>
+response :: Parser Response
+response = ABC.string "responseJson" *> skipSpace *> (Response <$> digits <*> (skipSpace *> jsonObject))
 
+-- <systemCall> ::= <initFunc> "{" <actions> "}" <response> <handleError>
+data SystemCall
+  = SystemCall InitFunc Actions Response [ HandleError ]
+  deriving (Show, Eq)
+
+systemCall :: Parser SystemCall
+systemCall =
+  SystemCall
+  <$> initFunc
+  <*> ((skipSpace *> ABC.char '{' *> skipSpace *> actions <* skipSpace <* ABC.char '}' <* skipSpace) <?> "Body not setup properly")
+  <*> ((response <* skipSpace) <?> "Response not setup properly")
+  <*> (skipSpace *> handleError)
 
 {-
 BNF DSL
