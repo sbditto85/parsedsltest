@@ -231,8 +231,8 @@ initFunc = choice [ InitWithCameraId <$> withCameraId
 
 -- <jsonvalue> ::= <stringConcat>
 newtype JsonValue
-  = JsonValue StringConcat
-  deriving (Show, Eq)
+  = JsonValue { unJsonValue :: StringConcat
+              } deriving (Show, Eq)
 
 jsonValue :: Parser JsonValue
 jsonValue = JsonValue <$> stringConcat

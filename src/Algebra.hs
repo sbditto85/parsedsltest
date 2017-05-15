@@ -15,6 +15,7 @@ module Algebra
   , printProgram
   , astToAlgebra
   , Result
+  , interpretAlgebra
   ) where
 
 import           Control.Monad.Free
@@ -22,6 +23,7 @@ import           Control.Monad.Free.TH
 import           Data.Aeson                       hiding (Result)
 import qualified Data.ByteString.Lazy.Char8       as BSLC
 import qualified Data.HashMap.Lazy                as MAP
+import qualified Data.Text                        as T
 import           Lib                              hiding (stringConcat)
 import           Network.HTTP.Simple              hiding (Response)
 import           Network.HTTP.Types.Status
@@ -155,7 +157,7 @@ concatStringConcat _ (StrString str) =
   str
 
 -- TODO: make interperter
-interpretAlgebra :: CameraId -> LiveUnitId -> Free Algebra a -> IO a
+interpretAlgebra :: CameraId -> LiveUnitId -> Free Algebra Result -> IO Result
 interpretAlgebra camId liveUnitId algebra = 
   interpretAlgebraHelper algebra
   where
@@ -179,8 +181,11 @@ interpretAlgebra camId liveUnitId algebra =
           interpretAlgebraHelper $ next identStorage'
         False ->
           error "do this"
-    interpretAlgebraHelper (Free (ResponseJson responseCode jsonObject' handleErrors identStorage next)) = do
-      
+    interpretAlgebraHelper (Free (ResponseJson responseCode (JsonObject (JsonParamList params)) handleErrors identStorage next)) = do
+      let toValue JsonParam{..} = (T.pack jsonParamKey) .= (String $ T.pack $ concatStringConcat identStorage $ unJsonValue jsonParamValue)
+          retVal = object $ toValue <$> params
+      pure $ Result responseCode retVal
+      --TODO: handle errors???
     interpretAlgebraHelper (Pure _) = error "Improper termination"
 
 
