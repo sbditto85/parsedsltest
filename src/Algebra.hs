@@ -14,10 +14,12 @@ module Algebra
   , fakeProgram
   , printProgram
   , astToAlgebra
+  , Result
   ) where
 
 import           Control.Monad.Free
 import           Control.Monad.Free.TH
+import           Data.Aeson                       hiding (Result)
 import qualified Data.ByteString.Lazy.Char8       as BSLC
 import qualified Data.HashMap.Lazy                as MAP
 import           Lib                              hiding (stringConcat)
@@ -29,19 +31,23 @@ type CameraId = Int
 type LiveUnitId = Int
 type IdentStorage = MAP.HashMap String String
 
+data Result
+  = Result ResponseCode Value
+  deriving (Eq, Show)
+
 -- | Need some way to force a start and end thats what IdentStorage is being used to do
 data Algebra next
   = WithCamera Ident (IdentStorage -> next)
   | StringConcat ResultIdent StringConcat IdentStorage (IdentStorage -> next)
   | HttpGetRequest (Maybe ResultIdent) StringConcat [ HandleError ] IdentStorage (IdentStorage -> next)
-  | ResponseJson ResponseCode JsonObject [ HandleError ] IdentStorage
+  | ResponseJson ResponseCode JsonObject [ HandleError ] IdentStorage (Result -> next)
   -- ^ figure out a way not to need this without use pure?? ... using it to glue the astToAlgebra middle and end if there is no middle
   deriving (Functor)
 
 makeFree ''Algebra
 
 newtype SimilarAlgebra =
-  SimilarAlgebra (Free Algebra ())
+  SimilarAlgebra (Free Algebra Result)
 
 emptyStorage :: IdentStorage
 emptyStorage = MAP.empty
@@ -70,13 +76,14 @@ instance Eq SimilarAlgebra where
 
   (SimilarAlgebra (Free (HttpGetRequest _ _ _ _ _))) == _ = False
 
-  (SimilarAlgebra (Free (ResponseJson resCode1 jsonObj1 handleErrors1 identStorage1))) ==
-    (SimilarAlgebra (Free (ResponseJson resCode2 jsonObj2 handleErrors2 identStorage2))) =
+  (SimilarAlgebra (Free (ResponseJson resCode1 jsonObj1 handleErrors1 identStorage1 next1))) ==
+    (SimilarAlgebra (Free (ResponseJson resCode2 jsonObj2 handleErrors2 identStorage2 next2))) =
     resCode1 == resCode2
     && jsonObj1 == jsonObj2
     && handleErrors1 == handleErrors2
     && identStorage1 == identStorage2
-  (SimilarAlgebra (Free (ResponseJson _ _ _ _))) == _ = False
+    -- && SimilarAlgebra (next1 1) == SimilarAlgebra (next2 2) -- TODO: figure out how to make this work
+  (SimilarAlgebra (Free (ResponseJson _ _ _ _ _))) == _ = False
 
   (SimilarAlgebra (Pure a)) == (SimilarAlgebra (Pure b)) = a == b
   (SimilarAlgebra (Pure _)) == _ = False
@@ -85,7 +92,7 @@ instance Show SimilarAlgebra where
   show (SimilarAlgebra fA) = stringifyProgram fA
 
 -- TODO: make AST/DSL to Algebra converter
-astToAlgebra :: SystemCall -> Free Algebra ()
+astToAlgebra :: SystemCall -> Free Algebra Result
 astToAlgebra (SystemCall initFunc' (Actions []) response' errorHandlers') =
   astToAlgebraStart initFunc' >>=
   \identStorage -> astToAlgebraEnd response' errorHandlers' identStorage
@@ -103,7 +110,7 @@ astToAlgebraMiddle (aOrD:[]) identStorage = convertActions identStorage aOrD
 astToAlgebraMiddle (aOrD:rest) identStorage = convertActions identStorage aOrD >>= astToAlgebraMiddle rest
 astToAlgebraMiddle [] _ = error "Something terrible happened"
 
-astToAlgebraEnd :: Response -> [ HandleError ] -> IdentStorage -> Free Algebra ()
+astToAlgebraEnd :: Response -> [ HandleError ] -> IdentStorage -> Free Algebra Result
 astToAlgebraEnd response' errorHandlers' identStorage = convertResponseFunc response' errorHandlers' identStorage
     
 
@@ -128,9 +135,9 @@ convertDeclaration :: IdentStorage -> Declaration -> Free Algebra IdentStorage
 convertDeclaration identStorage (Declaration ident' strConcat') =
   stringConcat ident' strConcat' identStorage
 
-convertResponseFunc :: Response -> [ HandleError ] -> IdentStorage -> Free Algebra ()
-convertResponseFunc (Response code json) errorHandlers identStorage =
-  responseJson code json errorHandlers identStorage
+convertResponseFunc :: Response -> [ HandleError ] -> IdentStorage -> Free Algebra Result
+convertResponseFunc (Response code json_) errorHandlers identStorage =
+  responseJson code json_ errorHandlers identStorage
 
 -- | concat a stringconcat
 concatStringConcat :: IdentStorage -> StringConcat -> String
@@ -172,41 +179,43 @@ interpretAlgebra camId liveUnitId algebra =
           interpretAlgebraHelper $ next identStorage'
         False ->
           error "do this"
-    interpretAlgebraHelper (Free (ResponseJson responseCode jsonObject' handleErrors identStorage)) = do
-      error "do this"
+    interpretAlgebraHelper (Free (ResponseJson responseCode jsonObject' handleErrors identStorage next)) = do
+      
     interpretAlgebraHelper (Pure _) = error "Improper termination"
 
 
 
 -- | fake program and program printer
-fakeProgram :: Free Algebra ()
+fakeProgram :: Free Algebra Result
 fakeProgram = do
   identStorage <- withCamera (Ident "camId")
   identStorage' <- httpGetRequest (Just (Ident "res")) (StrString "http://www.google.com") [] identStorage
   responseJson 200 (JsonObject (JsonParamList [])) [] identStorage'
 
 
-printProgram :: Free Algebra () -> IO ()
-printProgram (Free (WithCamera _ next)) = do
-  putStrLn "WithCamera"
+printProgram :: Free Algebra Result -> IO Result
+printProgram (Free (WithCamera (Ident camIdent) next)) = do
+  putStrLn $ "WithCamera " ++ camIdent
   printProgram $ next MAP.empty
-printProgram (Free (StringConcat _ _ identStorage next)) = do
-  putStrLn "StringConcat"
+printProgram (Free (StringConcat (Ident res) strConcat identStorage next)) = do
+  putStrLn $ "StringConcat " ++ res ++ " " ++ (concatStringConcat identStorage strConcat)
   printProgram $ next identStorage
-printProgram (Free (HttpGetRequest _ _ _ identStorage next)) = do
-  putStrLn "HttpGetRequest"
+printProgram (Free (HttpGetRequest mIdent strConcat _ identStorage next)) = do
+  putStrLn $ "HttpGetRequest " ++ (maybe "" (\(Ident str) -> str) mIdent) ++ " " ++ (concatStringConcat identStorage strConcat)
   printProgram $ next identStorage
-printProgram (Free (ResponseJson _ _ _ _)) = putStrLn "ResponseJson"
+printProgram (Free (ResponseJson code jsonObject' _ identStorage _)) = do
+  putStrLn $ "ResponseJson " ++ (show code)
+  pure $ Result code (Null)
 printProgram (Pure _) = error "Improper termincation"
 
 
 
-stringifyProgram :: Free Algebra () -> String
+stringifyProgram :: Free Algebra Result -> String
 stringifyProgram (Free (WithCamera _ next)) = do
   "WithCamera\n" ++ (stringifyProgram $ next MAP.empty)
 stringifyProgram (Free (StringConcat _ _ identStorage next)) = do
   "StringConcat\n" ++ (stringifyProgram $ next identStorage)
 stringifyProgram (Free (HttpGetRequest _ _ _ identStorage next)) = do
   "HttpGetRequest\n" ++ (stringifyProgram $ next identStorage)
-stringifyProgram (Free (ResponseJson _ _ _ _)) = "ResponseJson\n"
+stringifyProgram (Free (ResponseJson _ _ _ _ _)) = "ResponseJson\n"
 stringifyProgram (Pure _) = error "Improper termincation"

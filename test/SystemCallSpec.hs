@@ -33,7 +33,7 @@ spec = do
 
     -- printProgram convertedProg
 
-    let viaFree :: Free Algebra ()
+    let viaFree :: Free Algebra Algebra.Result
         viaFree = do
           iS <- withCamera (Ident "camId")
           iS' <- stringConcat (Ident "url") (StrConcat "http://test.example.com/my/endpoint" (StrIdent (Ident "camId"))) iS
