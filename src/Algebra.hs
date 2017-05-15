@@ -16,6 +16,7 @@ module Algebra
   , astToAlgebra
   , Result
   , interpretAlgebra
+  , strProgram
   ) where
 
 import           Control.Monad.Free
@@ -27,6 +28,7 @@ import qualified Data.Text                        as T
 import           Lib                              hiding (stringConcat)
 import           Network.HTTP.Simple              hiding (Response)
 import           Network.HTTP.Types.Status
+import           Text.RawString.QQ
 
 type ResultIdent = Ident
 type CameraId = Int
@@ -196,6 +198,12 @@ fakeProgram = do
   identStorage <- withCamera (Ident "camId")
   identStorage' <- httpGetRequest (Just (Ident "res")) (StrString "http://www.google.com") [] identStorage
   responseJson 200 (JsonObject (JsonParamList [])) [] identStorage'
+
+strProgram :: String
+strProgram = [r|withCameraId camId {
+               url = "http://www.google.com";
+               resp <- httpGet url : handleError 100 log "request to blah sucked";
+             } responseJson 0 { "url" : resp } : handleError 103 log "the whole thing just sucked"|]
 
 
 printProgram :: Free Algebra Result -> IO Result
